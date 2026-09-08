@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Freezer" />
+<meta name="theme-color" content="#14121f" />
+<title>Freezer Inventory</title>
+<style>
+  :root{
+    --bg:#14121f;
+    --card:#1e1b30;
+    --card2:#252140;
+    --accent:#b98af0;
+    --accent2:#7c5cff;
+    --text:#f1eefc;
+    --muted:#9a93b8;
+    --green:#5fd1a3;
+    --yellow:#e8c468;
+    --red:#f0788a;
+    --border:#332e4d;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue",Arial,sans-serif;
+    padding-bottom:env(safe-area-inset-bottom);
+    overscroll-behavior:none;
+  }
+  #app{max-width:520px;margin:0 auto;min-height:100vh;display:flex;flex-direction:column;position:relative;}
+  header{
+    padding:calc(env(safe-area-inset-top) + 14px) 18px 12px;
+    background:linear-gradient(180deg,#221d3a,#14121f);
+    position:sticky;top:0;z-index:5;
+    border-bottom:1px solid var(--border);
+  }
+  header h1{margin:0;font-size:20px;font-weight:700;}
+  header .sub{color:var(--muted);font-size:13px;margin-top:2px;}
+
+  .tabs{display:flex;gap:8px;padding:14px 14px 0;}
+  .tabs button{
+    flex:1;background:var(--card2);border:1px solid var(--border);color:var(--muted);
+    padding:10px;border-radius:12px;font-size:14px;font-weight:600;
+  }
+  .tabs button.active{background:var(--accent);border-color:var(--accent);color:#241a35;}
+
+  main{flex:1;padding:14px 14px 100px;}
+
+  .empty{text-align:center;color:var(--muted);padding:60px 20px;font-size:14px;}
+
+  .item-card{
+    background:var(--card);border:1px solid var(--border);border-radius:16px;
+    padding:14px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;gap:10px;
+  }
+  .item-info{min-width:0;flex:1;}
+  .item-name{font-weight:600;font-size:15px;word-break:break-word;}
+  .item-date{font-size:12.5px;margin-top:3px;}
+  .item-date.fresh{color:var(--green);}
+  .item-date.aging{color:var(--yellow);}
+  .item-date.stale{color:var(--red);}
+
+  .item-actions{display:flex;align-items:center;gap:6px;flex:none;}
+  .qty-btn{
+    width:30px;height:30px;border-radius:8px;background:var(--card2);border:1px solid var(--border);
+    color:var(--text);font-size:16px;line-height:1;
+  }
+  .qty{min-width:20px;text-align:center;font-weight:700;font-size:14px;}
+  .remove-btn{
+    width:34px;height:34px;border-radius:8px;background:none;border:1px solid var(--border);
+    font-size:15px;margin-left:4px;
+  }
+
+  .fab{
+    position:fixed;bottom:calc(env(safe-area-inset-bottom) + 22px);right:22px;
+    width:58px;height:58px;border-radius:50%;background:var(--accent2);border:none;
+    color:#fff;font-size:28px;box-shadow:0 6px 18px rgba(124,92,255,.5);z-index:10;
+  }
+  #app{max-width:520px;}
+  .fab-wrap{max-width:520px;margin:0 auto;position:relative;}
+
+  .overlay{
+    position:fixed;inset:0;background:rgba(10,8,20,.6);z-index:20;
+    display:none;align-items:flex-end;justify-content:center;
+  }
+  .overlay.active{display:flex;}
+  .sheet{
+    width:100%;max-width:520px;background:var(--bg);border-top-left-radius:22px;border-top-right-radius:22px;
+    border:1px solid var(--border);padding:16px 18px calc(env(safe-area-inset-bottom) + 20px);
+    max-height:88vh;overflow-y:auto;
+  }
+  .sheet-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
+  .sheet-head h2{margin:0;font-size:17px;}
+  .close-btn{background:none;border:none;color:var(--muted);font-size:22px;padding:4px 8px;}
+
+  .mode-row{display:flex;gap:8px;margin-bottom:16px;}
+  .mode-row button{
+    flex:1;background:var(--card2);border:1px solid var(--border);color:var(--text);
+    padding:12px 6px;border-radius:14px;font-size:13px;display:flex;flex-direction:column;align-items:center;gap:4px;
+  }
+  .mode-row button .ic{font-size:20px;}
+  .mode-row button.active{background:var(--accent);border-color:var(--accent);color:#241a35;}
+
+  #reader{border-radius:14px;overflow:hidden;margin-bottom:12px;border:1px solid var(--border);display:none;}
+  #reader.active{display:block;}
+  .scan-status{text-align:center;color:var(--muted);font-size:13px;margin-bottom:12px;}
+
+  .field{margin-bottom:14px;}
+  .field label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px;}
+  .name-row{display:flex;gap:8px;}
+  .name-row input{flex:1;}
+  input[type=text]{
+    width:100%;background:var(--card2);border:1px solid var(--border);color:var(--text);
+    padding:12px 14px;border-radius:12px;font-size:15px;
+  }
+  .mic-btn{
+    width:44px;height:44px;flex:none;border-radius:12px;background:var(--card2);border:1px solid var(--border);
+    color:var(--text);font-size:18px;
+  }
+  .mic-btn.listening{background:var(--red);border-color:var(--red);}
+
+  .seg-row{display:flex;gap:8px;}
+  .seg-row button{
+    flex:1;background:var(--card2);border:1px solid var(--border);color:var(--muted);
+    padding:10px;border-radius:10px;font-size:14px;font-weight:600;
+  }
+  .seg-row button.active{background:var(--accent);border-color:var(--accent);color:#241a35;}
+
+  .qty-row{display:flex;align-items:center;gap:14px;justify-content:center;padding:6px 0;}
+  .qty-row .qty-btn{width:40px;height:40px;font-size:20px;}
+  .qty-row .qty-val{font-size:20px;font-weight:700;min-width:30px;text-align:center;}
+
+  .save-btn{
+    width:100%;background:var(--accent2);border:none;color:#fff;padding:14px;border-radius:14px;
+    font-size:15px;font-weight:700;margin-top:6px;
+  }
+  .save-btn:disabled{opacity:.5;}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>&#10052;&#65039; Freezer Inventory</h1>
+    <div class="sub" id="headerSub"></div>
+  </header>
+
+  <div class="tabs">
+    <button data-freezer="1" id="tab1">Freezer 1</button>
+    <button data-freezer="2" id="tab2">Freezer 2</button>
+  </div>
+
+  <main>
+    <div id="list"></div>
+  </main>
+
+  <button class="fab" id="fabAdd">+</button>
+
+  <div class="overlay" id="overlay">
+    <div class="sheet">
+      <div class="sheet-head">
+        <h2>Add Item</h2>
+        <button class="close-btn" id="closeSheet">&times;</button>
+      </div>
+
+      <div class="mode-row">
+        <button data-mode="scan" id="modeScan"><span class="ic">&#128247;</span>Scan</button>
+        <button data-mode="voice" id="modeVoice"><span class="ic">&#127908;</span>Voice</button>
+        <button data-mode="manual" id="modeManual"><span class="ic">&#9999;&#65039;</span>Manual</button>
+      </div>
+
+      <div id="reader"></div>
+      <div class="scan-status" id="scanStatus"></div>
+
+      <div class="field">
+        <label>Item name</label>
+        <div class="name-row">
+          <input type="text" id="itemName" placeholder="e.g. Ground beef" />
+          <button class="mic-btn" id="micBtn" title="Voice input">&#127908;</button>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Freezer</label>
+        <div class="seg-row" id="freezerPicker">
+          <button data-freezer="1">Freezer 1</button>
+          <button data-freezer="2">Freezer 2</button>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Quantity</label>
+        <div class="qty-row">
+          <button class="qty-btn" id="formQtyDec">&minus;</button>
+          <span class="qty-val" id="formQtyVal">1</span>
+          <button class="qty-btn" id="formQtyInc">+</button>
+        </div>
+      </div>
+
+      <button class="save-btn" id="saveBtn">Save to Freezer</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script>
+(function(){
+  "use strict";
+
+  var STORAGE_KEY = "freezerInventory.items";
+  var inventory = loadInventory();
+  var activeFreezer = 1;
+
+  var listEl = document.getElementById("list");
+  var headerSub = document.getElementById("headerSub");
+  var tabBtns = [document.getElementById("tab1"), document.getElementById("tab2")];
+  var overlay = document.getElementById("overlay");
+  var scanStatus = document.getElementById("scanStatus");
+  var readerEl = document.getElementById("reader");
+  var nameInput = document.getElementById("itemName");
+  var micBtn = document.getElementById("micBtn");
+  var freezerPicker = document.getElementById("freezerPicker");
+  var qtyVal = document.getElementById("formQtyVal");
+  var saveBtn = document.getElementById("saveBtn");
+
+  var formFreezer = 1;
+  var formQty = 1;
+  var formBarcode = null;
+  var html5QrCode = null;
+  var recognition = null;
+
+  function loadInventory() {
+    try {
+      var raw = localStorage.getItem(STORAGE_KEY);
+      return raw ? JSON.parse(raw) : [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function saveInventory() {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(inventory));
+  }
+
+  function escapeHtml(str) {
+    var div = document.createElement("div");
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  function daysAgo(iso) {
+    var diff = Date.now() - new Date(iso).getTime();
+    return Math.max(0, Math.floor(diff / 86400000));
+  }
+
+  function freshnessClass(days) {
+    if (days > 180) return "stale";
+    if (days > 90) return "aging";
+    return "fresh";
+  }
+
+  function render() {
+    var items = inventory
+      .filter(function (it) { return it.freezer === activeFreezer; })
+      .sort(function (a, b) { return new Date(a.dateAdded) - new Date(b.dateAdded); });
+
+    listEl.innerHTML = "";
+    if (items.length === 0) {
+      listEl.innerHTML = '<div class="empty">This freezer is empty.<br>Tap + to add something.</div>';
+    } else {
+      items.forEach(function (it) {
+        var days = daysAgo(it.dateAdded);
+        var card = document.createElement("div");
+        card.className = "item-card";
+        card.innerHTML =
+          '<div class="item-info">' +
+            '<div class="item-name">' + escapeHtml(it.name) + '</div>' +
+            '<div class="item-date ' + freshnessClass(days) + '">' +
+              (days === 0 ? "Added today" : "Added " + days + "d ago") +
+            '</div>' +
+          '</div>' +
+          '<div class="item-actions">' +
+            '<button class="qty-btn" data-action="dec" data-id="' + it.id + '">&minus;</button>' +
+            '<span class="qty">' + it.quantity + '</span>' +
+            '<button class="qty-btn" data-action="inc" data-id="' + it.id + '">+</button>' +
+            '<button class="remove-btn" data-action="remove" data-id="' + it.id + '">&#128465;&#65039;</button>' +
+          '</div>';
+        listEl.appendChild(card);
+      });
+    }
+
+    var count = items.length;
+    headerSub.textContent = "Freezer " + activeFreezer + " \u00b7 " + count + (count === 1 ? " item" : " items");
+    tabBtns.forEach(function (btn) {
+      btn.classList.toggle("active", Number(btn.dataset.freezer) === activeFreezer);
+    });
+  }
+
+  listEl.addEventListener("click", function (e) {
+    var btn = e.target.closest("button[data-action]");
+    if (!btn) return;
+    var id = btn.dataset.id;
+    var action = btn.dataset.action;
+    var item = inventory.find(function (it) { return it.id === id; });
+    if (!item) return;
+
+    if (action === "inc") {
+      item.quantity += 1;
+      saveInventory();
+      render();
+    } else if (action === "dec") {
+      item.quantity -= 1;
+      if (item.quantity <= 0) {
+        inventory = inventory.filter(function (it) { return it.id !== id; });
+      }
+      saveInventory();
+      render();
+    } else if (action === "remove") {
+      if (confirm('Remove "' + item.name + '" \u2014 all used up?')) {
+        inventory = inventory.filter(function (it) { return it.id !== id; });
+        saveInventory();
+        render();
+      }
+    }
+  });
+
+  tabBtns.forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      activeFreezer = Number(btn.dataset.freezer);
+      render();
+    });
+  });
+
+  // ---------- Add sheet ----------
+
+  function openSheet() {
+    overlay.classList.add("active");
+    formFreezer = activeFreezer;
+    formQty = 1;
+    formBarcode = null;
+    nameInput.value = "";
+    qtyVal.textContent = "1";
+    updateFreezerPicker();
+    setMode("manual");
+  }
+
+  function closeSheet() {
+    overlay.classList.remove("active");
+    stopScanner();
+    stopVoice();
+  }
+
+  document.getElementById("fabAdd").addEventListener("click", openSheet);
+  document.getElementById("closeSheet").addEventListener("click", closeSheet);
+  overlay.addEventListener("click", function (e) {
+    if (e.target === overlay) closeSheet();
+  });
+
+  function updateFreezerPicker() {
+    var buttons = freezerPicker.querySelectorAll("button");
+    buttons.forEach(function (b) {
+      b.classList.toggle("active", Number(b.dataset.freezer) === formFreezer);
+    });
+  }
+
+  freezerPicker.addEventListener("click", function (e) {
+    var btn = e.target.closest("button[data-freezer]");
+    if (!btn) return;
+    formFreezer = Number(btn.dataset.freezer);
+    updateFreezerPicker();
+  });
+
+  document.getElementById("formQtyDec").addEventListener("click", function () {
+    formQty = Math.max(1, formQty - 1);
+    qtyVal.textContent = formQty;
+  });
+  document.getElementById("formQtyInc").addEventListener("click", function () {
+    formQty += 1;
+    qtyVal.textContent = formQty;
+  });
+
+  function setMode(mode) {
+    document.getElementById("modeScan").classList.toggle("active", mode === "scan");
+    document.getElementById("modeVoice").classList.toggle("active", mode === "voice");
+    document.getElementById("modeManual").classList.toggle("active", mode === "manual");
+
+    if (mode !== "scan") stopScanner();
+    if (mode === "scan") startScanner();
+    if (mode === "voice") startVoice();
+  }
+
+  document.getElementById("modeScan").addEventListener("click", function () { setMode("scan"); });
+  document.getElementById("modeVoice").addEventListener("click", function () { setMode("voice"); });
+  document.getElementById("modeManual").addEventListener("click", function () { setMode("manual"); });
+
+  // ---------- Barcode scanning ----------
+
+  function startScanner() {
+    readerEl.classList.add("active");
+    scanStatus.textContent = "Requesting camera access\u2026";
+    html5QrCode = new Html5Qrcode("reader");
+    html5QrCode
+      .start(
+        { facingMode: "environment" },
+        { fps: 10, qrbox: { width: 250, height: 150 } },
+        onScanSuccess,
+        function () {}
+      )
+      .then(function () {
+        scanStatus.textContent = "Point your camera at a barcode";
+      })
+      .catch(function (err) {
+        scanStatus.textContent = "Camera unavailable: " + err;
+      });
+  }
+
+  function stopScanner() {
+    readerEl.classList.remove("active");
+    scanStatus.textContent = "";
+    if (html5QrCode) {
+      var q = html5QrCode;
+      html5QrCode = null;
+      q.stop().then(function () { q.clear(); }).catch(function () {});
+    }
+  }
+
+  function onScanSuccess(decodedText) {
+    stopScanner();
+    setMode("manual");
+    lookupBarcode(decodedText);
+  }
+
+  function lookupBarcode(code) {
+    formBarcode = code;
+    nameInput.value = "Looking up\u2026";
+    nameInput.disabled = true;
+    fetch("https://world.openfoodfacts.org/api/v0/product/" + encodeURIComponent(code) + ".json")
+      .then(function (res) { return res.json(); })
+      .then(function (data) {
+        if (data && data.status === 1 && data.product) {
+          nameInput.value = data.product.product_name || data.product.generic_name || "";
+        } else {
+          nameInput.value = "";
+        }
+      })
+      .catch(function () {
+        nameInput.value = "";
+      })
+      .then(function () {
+        nameInput.disabled = false;
+        nameInput.focus();
+      });
+  }
+
+  // ---------- Voice input ----------
+
+  function startVoice() {
+    var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) {
+      alert("Voice input isn't supported in this browser. Tap the name field and use your keyboard's dictation (mic) button instead.");
+      setMode("manual");
+      nameInput.focus();
+      return;
+    }
+    recognition = new SR();
+    recognition.lang = "en-US";
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+    micBtn.classList.add("listening");
+    scanStatus.textContent = "Listening\u2026";
+
+    recognition.onresult = function (e) {
+      nameInput.value = e.results[0][0].transcript;
+    };
+    recognition.onerror = function () {
+      scanStatus.textContent = "";
+      micBtn.classList.remove("listening");
+    };
+    recognition.onend = function () {
+      scanStatus.textContent = "";
+      micBtn.classList.remove("listening");
+    };
+    recognition.start();
+  }
+
+  function stopVoice() {
+    if (recognition) {
+      var r = recognition;
+      recognition = null;
+      try { r.stop(); } catch (e) {}
+    }
+    micBtn.classList.remove("listening");
+  }
+
+  micBtn.addEventListener("click", function () {
+    setMode("voice");
+  });
+
+  // ---------- Save ----------
+
+  saveBtn.addEventListener("click", function () {
+    var name = nameInput.value.trim();
+    if (!name || name === "Looking up\u2026") {
+      nameInput.focus();
+      return;
+    }
+
+    stopScanner();
+    stopVoice();
+
+    var existing = inventory.find(function (it) {
+      if (it.freezer !== formFreezer) return false;
+      if (formBarcode) return it.barcode === formBarcode;
+      return it.name.toLowerCase() === name.toLowerCase();
+    });
+
+    if (existing) {
+      existing.quantity += formQty;
+    } else {
+      inventory.push({
+        id: Date.now().toString(36) + Math.random().toString(36).slice(2),
+        name: name,
+        barcode: formBarcode,
+        freezer: formFreezer,
+        quantity: formQty,
+        dateAdded: new Date().toISOString()
+      });
+    }
+
+    saveInventory();
+    activeFreezer = formFreezer;
+    closeSheet();
+    render();
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>
