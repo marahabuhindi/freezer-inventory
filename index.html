@@ -64,6 +64,16 @@
   .item-date.aging{color:var(--yellow);}
   .item-date.stale{color:var(--red);}
 
+  .item-cat{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;color:var(--muted);margin-top:4px;background:var(--card2);border-radius:20px;padding:2px 8px;}
+
+  .cat-filter{display:flex;gap:8px;overflow-x:auto;padding:12px 14px 0;-webkit-overflow-scrolling:touch;}
+  .cat-filter::-webkit-scrollbar{display:none;}
+  .cat-filter button{
+    flex:none;background:var(--card2);border:1px solid var(--border);color:var(--muted);
+    padding:7px 13px;border-radius:20px;font-size:13px;white-space:nowrap;font-weight:600;
+  }
+  .cat-filter button.active{background:var(--accent);border-color:var(--accent);color:#241a35;}
+
   .item-actions{display:flex;align-items:center;gap:6px;flex:none;}
   .qty-btn{
     width:30px;height:30px;border-radius:8px;background:var(--card2);border:1px solid var(--border);
@@ -130,6 +140,13 @@
   }
   .seg-row button.active{background:var(--accent);border-color:var(--accent);color:#241a35;}
 
+  .chip-grid{display:flex;flex-wrap:wrap;gap:8px;}
+  .chip-grid button{
+    background:var(--card2);border:1px solid var(--border);color:var(--muted);
+    padding:8px 12px;border-radius:20px;font-size:13px;font-weight:600;display:flex;align-items:center;gap:5px;
+  }
+  .chip-grid button.active{background:var(--accent);border-color:var(--accent);color:#241a35;}
+
   .qty-row{display:flex;align-items:center;gap:14px;justify-content:center;padding:6px 0;}
   .qty-row .qty-btn{width:40px;height:40px;font-size:20px;}
   .qty-row .qty-val{font-size:20px;font-weight:700;min-width:30px;text-align:center;}
@@ -152,6 +169,8 @@
     <button data-freezer="1" id="tab1">Freezer 1</button>
     <button data-freezer="2" id="tab2">Freezer 2</button>
   </div>
+
+  <div class="cat-filter" id="catFilter"></div>
 
   <main>
     <div id="list"></div>
@@ -192,6 +211,11 @@
       </div>
 
       <div class="field">
+        <label>Category</label>
+        <div class="chip-grid" id="categoryPicker"></div>
+      </div>
+
+      <div class="field">
         <label>Quantity</label>
         <div class="qty-row">
           <button class="qty-btn" id="formQtyDec">&minus;</button>
@@ -213,6 +237,21 @@
   var STORAGE_KEY = "freezerInventory.items";
   var inventory = loadInventory();
   var activeFreezer = 1;
+  var activeCategory = "all";
+
+  var CATEGORIES = [
+    { id: "meat", label: "Meat", icon: "\u{1F969}" },
+    { id: "poultry", label: "Poultry", icon: "\u{1F357}" },
+    { id: "seafood", label: "Seafood", icon: "\u{1F41F}" },
+    { id: "veggies", label: "Veggies", icon: "\u{1F966}" },
+    { id: "fruit", label: "Fruit", icon: "\u{1F353}" },
+    { id: "bread", label: "Breads", icon: "\u{1F35E}" },
+    { id: "dessert", label: "Dessert", icon: "\u{1F368}" },
+    { id: "leftovers", label: "Leftovers", icon: "\u{1F371}" },
+    { id: "other", label: "Other", icon: "\u{1F4E6}" }
+  ];
+  var CATEGORY_MAP = {};
+  CATEGORIES.forEach(function (c) { CATEGORY_MAP[c.id] = c; });
 
   var listEl = document.getElementById("list");
   var headerSub = document.getElementById("headerSub");
@@ -223,14 +262,21 @@
   var nameInput = document.getElementById("itemName");
   var micBtn = document.getElementById("micBtn");
   var freezerPicker = document.getElementById("freezerPicker");
+  var categoryPicker = document.getElementById("categoryPicker");
+  var catFilterEl = document.getElementById("catFilter");
   var qtyVal = document.getElementById("formQtyVal");
   var saveBtn = document.getElementById("saveBtn");
 
   var formFreezer = 1;
+  var formCategory = "other";
   var formQty = 1;
   var formBarcode = null;
   var html5QrCode = null;
   var recognition = null;
+
+  categoryPicker.innerHTML = CATEGORIES.map(function (c) {
+    return '<button data-category="' + c.id + '"><span>' + c.icon + '</span>' + c.label + '</button>';
+  }).join("");
 
   function loadInventory() {
     try {
@@ -262,17 +308,47 @@
     return "fresh";
   }
 
+  function categoryOf(it) {
+    return CATEGORY_MAP[it.category] ? it.category : "other";
+  }
+
+  function renderCatFilter(freezerItems) {
+    var present = {};
+    freezerItems.forEach(function (it) { present[categoryOf(it)] = true; });
+    var usedCats = CATEGORIES.filter(function (c) { return present[c.id]; });
+
+    if (usedCats.length === 0) {
+      catFilterEl.innerHTML = "";
+      activeCategory = "all";
+      return;
+    }
+    if (activeCategory !== "all" && !present[activeCategory]) activeCategory = "all";
+
+    var html = '<button data-cat="all" class="' + (activeCategory === "all" ? "active" : "") + '">All</button>';
+    html += usedCats.map(function (c) {
+      return '<button data-cat="' + c.id + '" class="' + (activeCategory === c.id ? "active" : "") + '">' +
+        c.icon + ' ' + c.label + '</button>';
+    }).join("");
+    catFilterEl.innerHTML = html;
+  }
+
   function render() {
-    var items = inventory
-      .filter(function (it) { return it.freezer === activeFreezer; })
+    var freezerItems = inventory.filter(function (it) { return it.freezer === activeFreezer; });
+    renderCatFilter(freezerItems);
+
+    var items = freezerItems
+      .filter(function (it) { return activeCategory === "all" || categoryOf(it) === activeCategory; })
       .sort(function (a, b) { return new Date(a.dateAdded) - new Date(b.dateAdded); });
 
     listEl.innerHTML = "";
     if (items.length === 0) {
-      listEl.innerHTML = '<div class="empty">This freezer is empty.<br>Tap + to add something.</div>';
+      listEl.innerHTML = '<div class="empty">' +
+        (freezerItems.length === 0 ? "This freezer is empty.<br>Tap + to add something." : "No items in this category.") +
+        '</div>';
     } else {
       items.forEach(function (it) {
         var days = daysAgo(it.dateAdded);
+        var cat = CATEGORY_MAP[categoryOf(it)];
         var card = document.createElement("div");
         card.className = "item-card";
         card.innerHTML =
@@ -281,6 +357,7 @@
             '<div class="item-date ' + freshnessClass(days) + '">' +
               (days === 0 ? "Added today" : "Added " + days + "d ago") +
             '</div>' +
+            '<div class="item-cat">' + cat.icon + ' ' + cat.label + '</div>' +
           '</div>' +
           '<div class="item-actions">' +
             '<button class="qty-btn" data-action="dec" data-id="' + it.id + '">&minus;</button>' +
@@ -330,8 +407,16 @@
   tabBtns.forEach(function (btn) {
     btn.addEventListener("click", function () {
       activeFreezer = Number(btn.dataset.freezer);
+      activeCategory = "all";
       render();
     });
+  });
+
+  catFilterEl.addEventListener("click", function (e) {
+    var btn = e.target.closest("button[data-cat]");
+    if (!btn) return;
+    activeCategory = btn.dataset.cat;
+    render();
   });
 
   // ---------- Add sheet ----------
@@ -339,11 +424,13 @@
   function openSheet() {
     overlay.classList.add("active");
     formFreezer = activeFreezer;
+    formCategory = "other";
     formQty = 1;
     formBarcode = null;
     nameInput.value = "";
     qtyVal.textContent = "1";
     updateFreezerPicker();
+    updateCategoryPicker();
     setMode("manual");
   }
 
@@ -371,6 +458,20 @@
     if (!btn) return;
     formFreezer = Number(btn.dataset.freezer);
     updateFreezerPicker();
+  });
+
+  function updateCategoryPicker() {
+    var buttons = categoryPicker.querySelectorAll("button");
+    buttons.forEach(function (b) {
+      b.classList.toggle("active", b.dataset.category === formCategory);
+    });
+  }
+
+  categoryPicker.addEventListener("click", function (e) {
+    var btn = e.target.closest("button[data-category]");
+    if (!btn) return;
+    formCategory = btn.dataset.category;
+    updateCategoryPicker();
   });
 
   document.getElementById("formQtyDec").addEventListener("click", function () {
@@ -525,6 +626,7 @@
         name: name,
         barcode: formBarcode,
         freezer: formFreezer,
+        category: formCategory,
         quantity: formQty,
         dateAdded: new Date().toISOString()
       });
